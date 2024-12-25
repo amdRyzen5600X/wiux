@@ -1,6 +1,6 @@
-## wiux
+# wiux
 
-# todo
+### todo
 - [ ] reconnect
 - [ ] callbacks for listening messages from server
 - [ ] subscribe/unsubscribe to topic
