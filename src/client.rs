@@ -1,4 +1,9 @@
-use std::{io::{Read, Write}, net::TcpStream, sync::Arc};
+use std::{
+    io::{Read, Write},
+    net::TcpStream,
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::types::{
     header::{self, Header, VariableHeader},
@@ -64,6 +69,31 @@ impl<'a, T> Callbacks<'a, T> {
 }
 
 impl Client {
+    pub fn publish(
+        &self,
+        topic: &str,
+        message_text: &str,
+        qos: QOS,
+        retain: bool,
+    ) -> Result<i32, ()> {
+        let pid = Instant::now().elapsed().subsec_millis() as u16;
+        let header = Header::new(
+            header::FixedHeader::Publish(false, qos, retain),
+            Some(VariableHeader::Publish(header::Publish {
+                topic_name: EncodedString::new(topic),
+                packet_id: Integer::new(pid),
+            })),
+        );
+        let payload = Payload {
+            content: Some(payload::Payloads::Publish(message_text.as_bytes().to_vec())),
+        };
+        let packet = ControlPacket { header, payload };
+        self.tcp_stream
+            .as_ref()
+            .write_all(&packet.to_bytes())
+            .map_err(|_| {})?;
+        Ok(pid as i32)
+    }
     pub fn new(
         client_id: String,
         will: Option<Will>,
@@ -168,7 +198,7 @@ impl Client {
                     0
                 },
                 if self.server_connection.password.is_some()
-                && self.server_connection.username.is_some()
+                    && self.server_connection.username.is_some()
                 {
                     1
                 } else {
@@ -189,7 +219,7 @@ impl Client {
                     0
                 },
                 if self.server_connection.password.is_some()
-                && self.server_connection.username.is_some()
+                    && self.server_connection.username.is_some()
                 {
                     1
                 } else {
@@ -231,10 +261,10 @@ impl Client {
     }
     pub fn do_loop<T>(&self, mut callbacks: Callbacks<T>) {
         let mut bytes = std::collections::VecDeque::new();
-        'outer :loop {
+        'outer: loop {
             let mut buf = [0_u8; 64];
             while let Ok(n) = self.tcp_stream.as_ref().read(&mut buf) {
-                if n < buf.len() && n != 0{
+                if n < buf.len() && n != 0 {
                     bytes.extend(buf[..n].to_vec());
                     break;
                 }
@@ -255,55 +285,95 @@ impl Client {
                 match resp.header.fixed {
                     header::FixedHeader::Unsuback => {
                         if let Some(ref cb) = callbacks.unsubscribe_callback {
-                            let header::VariableHeader::Unsuback(unsub) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Unsuback(unsub) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, unsub.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Suback => {
                         if let Some(ref cb) = callbacks.subscribe_callback {
-                            let header::VariableHeader::Suback(sub) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Suback(sub) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, sub.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Pubcomp => {
                         if let Some(ref cb) = callbacks.publish_callback {
-                            let header::VariableHeader::Pubcomp(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Pubcomp(publ) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Pubrel => {
                         if let Some(ref cb) = callbacks.publish_callback {
-                            let header::VariableHeader::Pubrec(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Pubrec(publ) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Pubrec => {
                         if let Some(ref cb) = callbacks.publish_callback {
-                            let header::VariableHeader::Pubrec(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Pubrec(publ) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Puback => {
                         if let Some(ref cb) = callbacks.publish_callback {
-                            let header::VariableHeader::Puback(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Puback(publ) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Connack => {
                         if let Some(ref cb) = callbacks.connect_callback {
-                            let header::VariableHeader::Conack(conn) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            let header::VariableHeader::Conack(conn) = resp
+                                .header
+                                .variable
+                                .expect("FATAL: that should not appear in any circumstances")
+                            else {
+                                continue;
+                            };
                             cb(&mut callbacks.data, conn.connect_return_code.to_u8() as i32);
                         }
-                    },
+                    }
                     header::FixedHeader::Publish(_, _, _) => {
                         if let Some(ref cb) = callbacks.message_callback {
                             cb(&mut callbacks.data, resp);
                         }
                     }
-                    header::FixedHeader::Pingresp => {
-                    },
-                    _ => {},
-
+                    header::FixedHeader::Pingresp => {}
+                    _ => {}
                 }
             } else {
                 continue;
