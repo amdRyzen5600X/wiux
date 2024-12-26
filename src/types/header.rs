@@ -2,8 +2,8 @@ use super::{Byte, EncodedString, Integer, QOS};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Header {
-    fixed: FixedHeader,
-    variable: Option<VariableHeader>,
+    pub(crate) fixed: FixedHeader,
+    pub(crate) variable: Option<VariableHeader>,
 }
 
 impl Header {

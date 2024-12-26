@@ -1,4 +1,4 @@
-use std::{io::Write, net::TcpStream, sync::Arc};
+use std::{io::{Read, Write}, net::TcpStream, sync::Arc};
 
 use crate::types::{
     header::{self, Header, VariableHeader},
@@ -13,11 +13,11 @@ pub struct Client {
     clean_session: bool,
     will: Option<Will>,
     tcp_stream: Arc<TcpStream>,
+    intent_disconnect: bool,
 }
 
 pub struct Callbacks<'a, T> {
     pub data: T,
-    client: &'a Client,
     message_callback: Option<Box<dyn Fn(&mut T, ControlPacket) + 'a>>,
     connect_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
     publish_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
@@ -28,9 +28,8 @@ pub struct Callbacks<'a, T> {
 }
 
 impl<'a, T> Callbacks<'a, T> {
-    pub fn new(client: &'a Client, data: T) -> Self {
+    pub fn new(data: T) -> Self {
         Self {
-            client,
             data,
             message_callback: None,
             connect_callback: None,
@@ -150,12 +149,11 @@ impl Client {
             server_connection,
             will,
             tcp_stream: Arc::new(tcp_stream),
+            intent_disconnect: false,
         })
     }
 
-    pub fn callbacks() {}
-
-    pub fn reconnect(&mut self) -> Result<(), ()> {
+    pub fn reconnect(&self) -> Result<(), ()> {
         let flags: [u8; 8];
         if let Some(will) = &self.will {
             let will_qos_flags = match will.qos {
@@ -170,7 +168,7 @@ impl Client {
                     0
                 },
                 if self.server_connection.password.is_some()
-                    && self.server_connection.username.is_some()
+                && self.server_connection.username.is_some()
                 {
                     1
                 } else {
@@ -191,7 +189,7 @@ impl Client {
                     0
                 },
                 if self.server_connection.password.is_some()
-                    && self.server_connection.username.is_some()
+                && self.server_connection.username.is_some()
                 {
                     1
                 } else {
@@ -230,5 +228,86 @@ impl Client {
             .write_all(&packet.to_bytes())
             .map_err(|_| {})?;
         Ok(())
+    }
+    pub fn do_loop<T>(&self, mut callbacks: Callbacks<T>) {
+        let mut bytes = std::collections::VecDeque::new();
+        'outer :loop {
+            let mut buf = [0_u8; 64];
+            while let Ok(n) = self.tcp_stream.as_ref().read(&mut buf) {
+                if n < buf.len() && n != 0{
+                    bytes.extend(buf[..n].to_vec());
+                    break;
+                }
+                if n == 0 && self.intent_disconnect {
+                    if let Some(ref cb) = callbacks.disconnect_callback {
+                        cb(&mut callbacks.data, 0);
+                    }
+                    return;
+                }
+                if n == 0 && !self.intent_disconnect {
+                    let _ = self.reconnect();
+                    continue 'outer;
+                }
+                bytes.extend(buf[..n].to_vec());
+            }
+            let response = ControlPacket::from_bytes(&mut bytes);
+            if let Some(resp) = response {
+                match resp.header.fixed {
+                    header::FixedHeader::Unsuback => {
+                        if let Some(ref cb) = callbacks.unsubscribe_callback {
+                            let header::VariableHeader::Unsuback(unsub) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, unsub.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Suback => {
+                        if let Some(ref cb) = callbacks.subscribe_callback {
+                            let header::VariableHeader::Suback(sub) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, sub.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Pubcomp => {
+                        if let Some(ref cb) = callbacks.publish_callback {
+                            let header::VariableHeader::Pubcomp(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Pubrel => {
+                        if let Some(ref cb) = callbacks.publish_callback {
+                            let header::VariableHeader::Pubrec(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Pubrec => {
+                        if let Some(ref cb) = callbacks.publish_callback {
+                            let header::VariableHeader::Pubrec(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Puback => {
+                        if let Some(ref cb) = callbacks.publish_callback {
+                            let header::VariableHeader::Puback(publ) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, publ.packet_id.to_u16() as i32);
+                        }
+                    },
+                    header::FixedHeader::Connack => {
+                        if let Some(ref cb) = callbacks.connect_callback {
+                            let header::VariableHeader::Conack(conn) = resp.header.variable.expect("FATAL: that should not appear in any circumstances") else { continue; };
+                            cb(&mut callbacks.data, conn.connect_return_code.to_u8() as i32);
+                        }
+                    },
+                    header::FixedHeader::Publish(_, _, _) => {
+                        if let Some(ref cb) = callbacks.message_callback {
+                            cb(&mut callbacks.data, resp);
+                        }
+                    }
+                    header::FixedHeader::Pingresp => {
+                    },
+                    _ => {},
+
+                }
+            } else {
+                continue;
+            }
+        }
     }
 }

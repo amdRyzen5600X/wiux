@@ -1,7 +1,7 @@
-use std::{io::Write, net::TcpStream};
+use std::collections::VecDeque;
 
-use header::{Header, VariableHeader};
-use payload::{ConnectPayload, Payload};
+use header::Header;
+use payload::Payload;
 
 pub mod header;
 pub mod payload;
@@ -50,6 +50,9 @@ impl Integer {
     pub fn to_bytes(&self) -> Vec<u8> {
         vec![self.msb.to_u8(), self.lsb.to_u8()]
     }
+    pub fn to_u16(&self) -> u16 {
+        ((self.msb.to_u8() as u16) << 8) | self.lsb.to_u8() as u16
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -93,10 +96,160 @@ pub struct ControlPacket {
 }
 
 impl ControlPacket {
+    pub fn from_bytes(bytes: &mut VecDeque<u8>) -> Option<Self> {
+        let mut buf = Vec::new();
+        let packet_type = bytes.pop_front()?;
+        let len = bytes
+            .pop_front()
+            .expect("unexpected response: expected remaining length of response got None");
+        for _ in 0..len as usize {
+            buf.push(
+                bytes
+                    .pop_front()
+                    .expect("unexpected response: expected bytes of response got None"),
+            );
+        }
+        match packet_type {
+            32_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Connack,
+                    Some(header::VariableHeader::Conack(header::ConnectAcknowledge {
+                        connect_acknowledge_flags: Byte::new(buf[0]),
+                        connect_return_code: Byte::new(buf[1]),
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            64_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Puback,
+                    Some(header::VariableHeader::Puback(header::PublishAcknowledge {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            80_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Pubrec,
+                    Some(header::VariableHeader::Pubrec(header::PublishRecieved {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            98_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Pubrel,
+                    Some(header::VariableHeader::Pubrel(header::PublishRelease {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            112_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Pubcomp,
+                    Some(header::VariableHeader::Pubcomp(header::PublishComplete {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            144_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Suback,
+                    Some(header::VariableHeader::Suback(header::Subscribe {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload {
+                        content: Some(payload::Payloads::SubAcknowledge(
+                            buf.as_slice()[2..]
+                                .to_vec()
+                                .iter()
+                                .map(|b| match b {
+                                    0 => {
+                                        return Ok(QOS::Zero);
+                                    }
+                                    1 => {
+                                        return Ok(QOS::One);
+                                    }
+                                    2 => {
+                                        return Ok(QOS::Two);
+                                    }
+                                    _ => {
+                                        return Err(());
+                                    }
+                                })
+                                .collect(),
+                        )),
+                    },
+                });
+            }
+            176_u8 => {
+                let header = Header::new(
+                    header::FixedHeader::Unsuback,
+                    Some(header::VariableHeader::Unsuback(header::Unsubscribe {
+                        packet_id: Integer {
+                            msb: Byte::new(buf[0]),
+                            lsb: Byte::new(buf[1]),
+                        },
+                    })),
+                );
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            208_u8 => {
+                let header = Header::new(header::FixedHeader::Pingresp, None);
+                return Some(ControlPacket {
+                    header,
+                    payload: Payload { content: None },
+                });
+            }
+            _ => {}
+        }
+        None
+    }
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.header.to_bytes());
         res.extend(self.payload.to_bytes());
+        res[1] = res.len() as u8;
         res
     }
 }
@@ -116,4 +269,3 @@ pub struct Will {
     pub qos: QOS,
     pub retain: bool,
 }
-
