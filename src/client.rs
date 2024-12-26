@@ -69,15 +69,20 @@ impl<'a, T> Callbacks<'a, T> {
 }
 
 impl Client {
-    pub fn disconnect(&self) -> Result<(), ()> {
+    pub fn disconnect(&mut self) -> Result<(), ()> {
         let packet = ControlPacket {
             header: Header::new(header::FixedHeader::Disconnect, None),
             payload: Payload { content: None },
         };
-        self.tcp_stream
+        self.intent_disconnect = true;
+        let res = self.tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {})
+            .map_err(|_| {});
+        if res.is_err() {
+            self.intent_disconnect = false;
+        }
+        res
     }
     pub fn publish(
         &self,
