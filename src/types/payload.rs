@@ -69,22 +69,10 @@ impl ConnectPayload {
         username: Option<&str>,
         password: Option<&str>,
     ) -> Self {
-        let will_topic = match will_topic {
-            Some(wt) => Some(EncodedString::new(wt)),
-            None => None,
-        };
-        let will_message = match will_message {
-            Some(wt) => Some(EncodedString::new(wt)),
-            None => None,
-        };
-        let username = match username {
-            Some(wt) => Some(EncodedString::new(wt)),
-            None => None,
-        };
-        let password = match password {
-            Some(wt) => Some(EncodedString::new(wt)),
-            None => None,
-        };
+        let will_topic = will_topic.map(EncodedString::new);
+        let will_message = will_message.map(EncodedString::new);
+        let username = username.map(EncodedString::new);
+        let password = password.map(EncodedString::new);
         Self {
             client_id: EncodedString::new(client_id),
             will_topic,

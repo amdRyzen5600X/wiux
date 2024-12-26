@@ -8,7 +8,7 @@ pub mod payload;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Byte {
-    bits: [u8; 8],
+    pub(crate) bits: [u8; 8],
 }
 
 impl Byte {
@@ -48,10 +48,7 @@ impl Integer {
         }
     }
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res = Vec::new();
-        res.push(self.msb.to_u8());
-        res.push(self.lsb.to_u8());
-        res
+        vec![self.msb.to_u8(), self.lsb.to_u8()]
     }
 }
 
@@ -67,6 +64,11 @@ impl EncodedString {
             len: Integer::new(s.len() as u16),
             value: s.as_bytes().to_vec(),
         }
+    }
+    pub fn to_str(&self) -> &'static str {
+        return Box::leak(Box::new(
+            String::from_utf8(self.value.clone()).expect("error while trying decode utf8 string"),
+        ));
     }
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
@@ -86,8 +88,8 @@ pub enum QOS {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ControlPacket {
-    header: Header,
-    payload: Payload,
+    pub(crate) header: Header,
+    pub(crate) payload: Payload,
 }
 
 impl ControlPacket {
@@ -99,105 +101,19 @@ impl ControlPacket {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Client {
-    client_id: String,
-    server_host: Option<String>,
-    clean_session: bool,
-    will_flag: bool,
-    will_topic: String,
-    will_qos: Option<QOS>,
-    will_retain: bool,
-    tcp_stream: Option<TcpStream>,
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ServerConnection {
+    pub(crate) host: String,
+    pub(crate) port: u32,
+    pub(crate) username: Option<EncodedString>,
+    pub(crate) password: Option<EncodedString>,
 }
 
-impl Client {
-    pub fn new(client_id: String) -> Self {
-        Client {
-            client_id,
-            server_host: None,
-            clean_session: false,
-            will_flag: false,
-            will_retain: false,
-            will_qos: None,
-            will_topic: String::new(),
-            tcp_stream: None,
-        }
-    }
-    pub fn new_session(client_id: String, clean_session: bool) -> Self {
-        Client {
-            client_id,
-            clean_session,
-            server_host: None,
-            will_flag: false,
-            will_retain: false,
-            will_qos: None,
-            will_topic: String::new(),
-            tcp_stream: None,
-        }
-    }
-
-    pub fn callbacks() {}
-
-    pub fn conect(
-        &mut self,
-        host: &str,
-        port: u32,
-        username: Option<&str>,
-        will_message: Option<&str>,
-        pass: Option<&str>,
-    ) -> Result<(), ()> {
-        let mut tcp_stream = TcpStream::connect(&format!("{}:{}", host, port)).map_err(|err| {
-            eprintln!("ERROR: unnable to connect to {}{}\n{}", host, port, err);
-        })?;
-        let will_qos_flags = match &self.will_qos {
-            Some(qos) => match qos {
-                QOS::One => [0, 1],
-                QOS::Two => [1, 0],
-                QOS::Zero => [0, 0],
-            },
-            None => [0, 0],
-        };
-        let flags = [
-            if username.is_some() { 1 } else { 0 },
-            if pass.is_some() && username.is_some() {
-                1
-            } else {
-                0
-            },
-            if self.will_retain { 1 } else { 0 },
-            will_qos_flags[0],
-            will_qos_flags[1],
-            if self.will_flag { 1 } else { 0 },
-            if self.will_retain { 1 } else { 0 },
-            0,
-        ];
-        let header = Header::new(
-            header::FixedHeader::Connect,
-            Some(VariableHeader::Connect(header::Connect {
-                protocol_name: EncodedString::new("MQTT"),
-                protocol_level: Byte::new(4),
-                connect_flags: Byte { bits: flags },
-                keep_alive: Integer::new(0),
-            })),
-        );
-        let payload = Payload {
-            content: Some(payload::Payloads::Connect(ConnectPayload::new(
-                &self.client_id,
-                Some(&self.will_topic),
-                will_message,
-                username,
-                pass,
-            ))),
-        };
-        let packet = ControlPacket {
-            header,
-            payload,
-        };
-        tcp_stream.write_all(&packet.to_bytes()).map_err(|err| {
-            eprintln!("ERROR: could not send {:?} {}", packet, err);
-        })?;
-        self.tcp_stream = Some(tcp_stream);
-        Ok(())
-    }
+#[derive(Debug, Default, Clone)]
+pub struct Will {
+    pub topic: String,
+    pub message: String,
+    pub qos: QOS,
+    pub retain: bool,
 }
+

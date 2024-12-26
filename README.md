@@ -1,7 +1,7 @@
 # wiux
 
 ### todo
-- [ ] reconnect
+- [X] reconnect
 - [ ] callbacks for listening messages from server
 - [ ] subscribe/unsubscribe to topic
 - [ ] publising messages
