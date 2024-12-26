@@ -6,6 +6,9 @@ use payload::Payload;
 pub mod header;
 pub mod payload;
 
+pub type CallbackFunc<'a, T, V> = Option<Box<dyn Fn(&mut T, V) + 'a>>;
+pub type LogCollbackFunc<'a, T> = Option<Box<dyn Fn(&mut T, u32, &str) + 'a>>;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Byte {
     pub(crate) bits: [u8; 8],
@@ -202,16 +205,16 @@ impl ControlPacket {
                                 .iter()
                                 .map(|b| match b {
                                     0 => {
-                                        return Ok(QOS::Zero);
+                                        Ok(QOS::Zero)
                                     }
                                     1 => {
-                                        return Ok(QOS::One);
+                                        Ok(QOS::One)
                                     }
                                     2 => {
-                                        return Ok(QOS::Two);
+                                        Ok(QOS::Two)
                                     }
                                     _ => {
-                                        return Err(());
+                                        Err(())
                                     }
                                 })
                                 .collect(),

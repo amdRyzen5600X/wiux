@@ -6,9 +6,7 @@ use std::{
 };
 
 use crate::types::{
-    header::{self, Header, VariableHeader},
-    payload::{self, ConnectPayload, Payload},
-    Byte, ControlPacket, EncodedString, Integer, ServerConnection, Will, QOS,
+    header::{self, Header, VariableHeader}, payload::{self, ConnectPayload, Payload}, Byte, CallbackFunc, ControlPacket, EncodedString, Integer, LogCollbackFunc, ServerConnection, Will, QOS
 };
 
 #[derive(Debug)]
@@ -23,13 +21,13 @@ pub struct Client {
 
 pub struct Callbacks<'a, T> {
     pub data: T,
-    message_callback: Option<Box<dyn Fn(&mut T, ControlPacket) + 'a>>,
-    connect_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
-    publish_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
-    subscribe_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
-    unsubscribe_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
-    disconnect_callback: Option<Box<dyn Fn(&mut T, i32) + 'a>>,
-    log_callback: Option<Box<dyn Fn(&mut T, u32, &str) + 'a>>,
+    message_callback: CallbackFunc<'a, T, ControlPacket>,
+    connect_callback: CallbackFunc<'a, T, i32>,
+    publish_callback: CallbackFunc<'a, T, i32>,
+    subscribe_callback: CallbackFunc<'a, T, i32>,
+    unsubscribe_callback: CallbackFunc<'a, T, i32>,
+    disconnect_callback: CallbackFunc<'a, T, i32>,
+    log_callback: LogCollbackFunc<'a, T>,
 }
 
 impl<'a, T> Callbacks<'a, T> {
