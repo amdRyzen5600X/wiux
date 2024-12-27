@@ -13,13 +13,13 @@ impl TopicMatcher {
             }
             true
         });
-        if topic_filter.contains("#") && topic_filter.chars().last() != Some('#') {
+        if topic_filter.contains("#") && !topic_filter.ends_with("#") {
             return Err(());
         }
         if topic.all(|v| v) {
             return Ok(Self { topic_filter });
         }
-        return Err(());
+        Err(())
     }
     pub fn matches(&self, msg: ControlPacket) -> bool {
         match msg.header.variable {
@@ -85,12 +85,10 @@ impl TopicMatcher {
                         spos += 1;
                         sub_p += 1;
                         topic_p += 1;
-                        if sub.get(sub_p).is_none() && topic.get(topic_p).is_none() {
-                            result = true;
-                            return result;
-                        } else if topic.get(topic_p).is_none()
-                            && sub[sub_p] == '+'
-                            && sub.get(sub_p + 1).is_none()
+                        if (sub.get(sub_p).is_none() && topic.get(topic_p).is_none())
+                            || (topic.get(topic_p).is_none()
+                                && sub[sub_p] == '+'
+                                && sub.get(sub_p + 1).is_none())
                         {
                             result = true;
                             return result;
