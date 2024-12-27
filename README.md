@@ -3,7 +3,7 @@
 ### todo
 - [X] reconnect
 - [X] callbacks for listening messages from server
-- [ ] subscribe/unsubscribe to topic
+- [X] subscribe/unsubscribe to topic
 - [X] publising messages
 - [X] disconect
 - [X] main loop variations for auto network event handling
