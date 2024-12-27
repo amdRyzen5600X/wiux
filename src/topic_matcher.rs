@@ -6,6 +6,21 @@ pub struct TopicMatcher {
 }
 
 impl TopicMatcher {
+    pub(crate) fn new(topic_filter: &'static str) -> Result<Self, ()> {
+        let mut topic = topic_filter.split('/').map(|v| {
+            if (v.contains("#") || v.contains("+")) && v.len() > 1 {
+                return false;
+            }
+            true
+        });
+        if topic_filter.contains("#") && topic_filter.chars().last() != Some('#') {
+            return Err(());
+        }
+        if topic.all(|v| v) {
+            return Ok(Self { topic_filter });
+        }
+        return Err(());
+    }
     pub fn matches(&self, msg: ControlPacket) -> bool {
         match msg.header.variable {
             Some(crate::types::header::VariableHeader::Publish(h)) => {

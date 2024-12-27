@@ -103,8 +103,8 @@ impl ConnectPayload {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SubscribePayload {
-    topic_filter: EncodedString,
-    qos: QOS,
+    pub(crate) topic_filter: EncodedString,
+    pub(crate) qos: QOS,
 }
 
 impl SubscribePayload {

@@ -5,8 +5,14 @@ use std::{
     time::Instant,
 };
 
-use crate::types::{
-    header::{self, Header, VariableHeader}, payload::{self, ConnectPayload, Payload}, Byte, CallbackFunc, ControlPacket, EncodedString, Integer, LogCollbackFunc, ServerConnection, Will, QOS
+use crate::{
+    topic_matcher::TopicMatcher,
+    types::{
+        header::{self, Header, VariableHeader},
+        payload::{self, ConnectPayload, Payload, SubscribePayload},
+        Byte, CallbackFunc, ControlPacket, EncodedString, Integer, LogCollbackFunc,
+        ServerConnection, Will, QOS,
+    },
 };
 
 #[derive(Debug)]
@@ -67,13 +73,58 @@ impl<'a, T> Callbacks<'a, T> {
 }
 
 impl Client {
+    pub fn subscribe(&self, topic: &'static str, qos: QOS) -> Result<TopicMatcher, ()> {
+        let pid = Instant::now().elapsed().subsec_millis() as u16;
+        let packet = ControlPacket {
+            header: Header {
+                fixed: header::FixedHeader::Subscribe,
+                variable: Some(VariableHeader::Subscribe(header::Subscribe {
+                    packet_id: Integer::new(pid),
+                })),
+            },
+            payload: Payload {
+                content: Some(payload::Payloads::Subscribe(vec![SubscribePayload {
+                    topic_filter: EncodedString::new(topic),
+                    qos,
+                }])),
+            },
+        };
+        let tm = TopicMatcher::new(topic)?;
+        self.tcp_stream
+            .as_ref()
+            .write_all(&packet.to_bytes())
+            .map_err(|_| {})?;
+        Ok(tm)
+    }
+    pub fn unsubscribe(&self, topic: &'static str) -> Result<i32, ()> {
+        let pid = Instant::now().elapsed().subsec_millis() as u16;
+        let packet = ControlPacket {
+            header: Header {
+                fixed: header::FixedHeader::Unsubscribe,
+                variable: Some(VariableHeader::Unsubscribe(header::Unsubscribe {
+                    packet_id: Integer::new(pid),
+                })),
+            },
+            payload: Payload {
+                content: Some(payload::Payloads::Unsubscribe(vec![EncodedString::new(
+                    topic,
+                )])),
+            },
+        };
+        self.tcp_stream
+            .as_ref()
+            .write_all(&packet.to_bytes())
+            .map_err(|_| {})?;
+        Ok(pid.into())
+    }
     pub fn disconnect(&mut self) -> Result<(), ()> {
         let packet = ControlPacket {
             header: Header::new(header::FixedHeader::Disconnect, None),
             payload: Payload { content: None },
         };
         self.intent_disconnect = true;
-        let res = self.tcp_stream
+        let res = self
+            .tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
             .map_err(|_| {});
