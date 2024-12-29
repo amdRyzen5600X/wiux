@@ -10,12 +10,14 @@ pub mod error;
 pub type CallbackFunc<'a, T, V> = Option<Box<dyn Fn(&mut T, V) + 'a>>;
 pub type LogCollbackFunc<'a, T> = Option<Box<dyn Fn(&mut T, u32, &str) + 'a>>;
 
+///Represents a single byte.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Byte {
     pub(crate) bits: [u8; 8],
 }
 
 impl Byte {
+    ///Creates a new Byte instance from a u8 value.
     pub fn new(val: u8) -> Self {
         let s = format!("{:b}", val);
         let mut bits = [0_u8; 8];
@@ -28,6 +30,7 @@ impl Byte {
         }
         Self { bits }
     }
+    ///Converts the Byte instance to a u8 value.
     pub fn to_u8(&self) -> u8 {
         let mut res = 0_u8;
         for (i, b) in self.bits.iter().enumerate() {
@@ -37,6 +40,7 @@ impl Byte {
     }
 }
 
+///Represents a 16-bit integer.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer {
     msb: Byte,
@@ -44,6 +48,7 @@ pub struct Integer {
 }
 
 impl Integer {
+    ///Creates a new Integer instance from a u16 value.
     pub fn new(val: u16) -> Self {
         let val = val.to_be_bytes();
         Self {
@@ -51,14 +56,17 @@ impl Integer {
             lsb: Byte::new(val[1]),
         }
     }
+    ///Converts the Integer instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         vec![self.msb.to_u8(), self.lsb.to_u8()]
     }
+    ///Converts the Integer instance to a u16 value.
     pub fn to_u16(&self) -> u16 {
         ((self.msb.to_u8() as u16) << 8) | self.lsb.to_u8() as u16
     }
 }
 
+///Represents a string encoded in utf-8 format expected by MQTT.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EncodedString {
     len: Integer,
@@ -66,17 +74,20 @@ pub struct EncodedString {
 }
 
 impl EncodedString {
+    ///Creates a new EncodedString instance from a &str value.
     pub fn new(s: &str) -> Self {
         Self {
             len: Integer::new(s.len() as u16),
             value: s.as_bytes().to_vec(),
         }
     }
+    ///Converts the EncodedString instance to a &str value.
     pub fn to_str(&self) -> &'static str {
         return Box::leak(Box::new(
             String::from_utf8(self.value.clone()).expect("error while trying decode utf8 string"),
         ));
     }
+    ///Converts the EncodedString instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.len.to_bytes());
@@ -85,14 +96,19 @@ impl EncodedString {
     }
 }
 
+///Represents the Quality of Service (QoS) level.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum QOS {
+    ///At most once delivery.
     #[default]
     Zero,
+    ///At least once delivery.
     One,
+    ///Exactly least once delivery.
     Two,
 }
 
+///Represents an MQTT control packet.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ControlPacket {
     pub(crate) header: Header,
@@ -100,6 +116,7 @@ pub struct ControlPacket {
 }
 
 impl ControlPacket {
+    ///Creates a new ControlPacket instance from a byte vector.
     pub fn from_bytes(bytes: &mut VecDeque<u8>) -> Option<Self> {
         let mut buf = Vec::new();
         let packet_type = bytes.pop_front()?;
@@ -249,6 +266,7 @@ impl ControlPacket {
         }
         None
     }
+    ///Converts the ControlPacket instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.header.to_bytes());
@@ -266,6 +284,7 @@ pub(crate) struct ServerConnection {
     pub(crate) password: Option<EncodedString>,
 }
 
+///Represents a will message, with fields for topic, message, QoS, and retain.
 #[derive(Debug, Default, Clone)]
 pub struct Will {
     pub topic: String,

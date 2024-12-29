@@ -1,5 +1,6 @@
 use super::{Byte, EncodedString, Integer, QOS};
 
+///Represents an MQTT header, consisting of a fixed header and an optional variable header.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Header {
     pub(crate) fixed: FixedHeader,
@@ -7,12 +8,14 @@ pub struct Header {
 }
 
 impl Header {
+    ///Creates a new Header instance with the given fixed header type and optional variable header.
     pub fn new(fixed_header_type: FixedHeader, variable_header: Option<VariableHeader>) -> Self {
         Self {
             fixed: fixed_header_type,
             variable: variable_header,
         }
     }
+    ///Converts the header to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.fixed.to_bytes());
@@ -23,6 +26,7 @@ impl Header {
     }
 }
 
+///Represents the fixed header of an MQTT packet.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FixedHeader {
     #[default]
@@ -43,6 +47,7 @@ pub enum FixedHeader {
 }
 
 impl FixedHeader {
+    ///Converts the fixed header to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         match self {
@@ -79,6 +84,7 @@ impl FixedHeader {
     }
 }
 
+///Represents the variable header of an MQTT packet.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VariableHeader {
     Connect(Connect),
@@ -97,6 +103,7 @@ pub enum VariableHeader {
 }
 
 impl VariableHeader {
+    ///Converts the variable header to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         match self {
@@ -122,6 +129,7 @@ impl VariableHeader {
     }
 }
 
+///Represents the connect packet variable header.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Connect {
     pub protocol_name: EncodedString,
@@ -130,40 +138,48 @@ pub struct Connect {
     pub keep_alive: Integer,
 }
 
+///Represents the connect acknowledge packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConnectAcknowledge {
     pub connect_acknowledge_flags: Byte,
     pub connect_return_code: Byte,
 }
 
+///Represents the publish packet variable header.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Publish {
     pub topic_name: EncodedString,
     pub packet_id: Integer,
 }
 
+///Represents the publish acknowledge packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublishAcknowledge {
     pub packet_id: Integer,
 }
 
+///Represents the publish received packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublishRecieved {
     pub packet_id: Integer,
 }
+///Represents the publish release packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublishRelease {
     pub packet_id: Integer,
 }
+///Represents the publish complete packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublishComplete {
     pub packet_id: Integer,
 }
 
+///Represents the subscribe packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Subscribe {
     pub packet_id: Integer,
 }
+///Represents the unsubscribe packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Unsubscribe {
     pub packet_id: Integer,

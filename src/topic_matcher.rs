@@ -1,5 +1,6 @@
 use crate::types::ControlPacket;
 
+///Represents a topic matcher, with a topic_filter field.
 #[derive(Default, Debug, Clone, Copy)]
 pub struct TopicMatcher {
     topic_filter: &'static str,
@@ -21,6 +22,36 @@ impl TopicMatcher {
         }
         Err(crate::types::error::Error::InvalidTopicMatcherError(topic_filter))
     }
+    ///Checks if a control packet matches the topic filter.
+    ///
+    ///##Implementation Details
+    ///###The TopicMatcher implementation uses a simple state machine to match the topic filter against the topic name in the control packet. The state machine handles the following cases:
+    ///
+    ///+ wildcard: matches any single level of the topic hierarchy
+    ///\# wildcard: matches any remaining levels of the topic hierarchy
+    ///exact matches: matches the exact topic name
+    ///
+    ///The matches method returns true if the control packet matches the topic filter, and false otherwise.
+    ///
+    ///#Example
+    ///
+    ///```ignore
+    ///let matcher = TopicMatcher {
+    ///    topic_filter: "one/+/some/#",
+    ///};
+    ///let msg_topic = "one/two/some/another/twonother";
+    ///let msg = ControlPacket {
+    ///    header: crate::types::header::Header::new(
+    ///        FixedHeader::Publish(false, crate::types::QOS::Zero, false),
+    ///        Some(VariableHeader::Publish(crate::types::header::Publish {
+    ///            topic_name: types::EncodedString::new(msg_topic),
+    ///            packet_id: types::Integer::new(0),
+    ///        })),
+    ///    ),
+    ///    payload: types::payload::Payload { content: None },
+    ///};
+    ///assert!(matcher.matches(msg));
+    ///```
     pub fn matches(&self, msg: ControlPacket) -> bool {
         match msg.header.variable {
             Some(crate::types::header::VariableHeader::Publish(h)) => {
@@ -264,7 +295,7 @@ mod tests {
         let matcher = TopicMatcher {
             topic_filter: "one/+/some/#",
         };
-        let msg_topic = "one/two/some/another";
+        let msg_topic = "one/two/some/another/twonother";
         let msg = ControlPacket {
             header: crate::types::header::Header::new(
                 FixedHeader::Publish(false, crate::types::QOS::Zero, false),

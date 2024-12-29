@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+///Represents an MQTT client, with fields for client ID, server connection, clean session, will, TCP stream, and intent to disconnect.
 #[derive(Debug)]
 pub struct Client {
     client_id: String,
@@ -25,6 +26,7 @@ pub struct Client {
     intent_disconnect: bool,
 }
 
+///Represents a set of callbacks for the client.
 pub struct Callbacks<'a, T> {
     pub data: T,
     message_callback: CallbackFunc<'a, T, ControlPacket>,
@@ -37,6 +39,7 @@ pub struct Callbacks<'a, T> {
 }
 
 impl<'a, T> Callbacks<'a, T> {
+    ///Creates a new Callbacks instance.
     pub fn new(data: T) -> Self {
         Self {
             data,
@@ -49,36 +52,46 @@ impl<'a, T> Callbacks<'a, T> {
             log_callback: None,
         }
     }
+    ///Sets the message callback.
     pub fn on_message<C: Fn(&mut T, ControlPacket) + 'a>(&mut self, callback: C) {
         self.message_callback = Some(Box::new(callback));
     }
+    ///Sets the connect callback.
     pub fn on_connect<C: Fn(&mut T, i32) + 'a>(&mut self, callback: C) {
         self.connect_callback = Some(Box::new(callback));
     }
+    ///Sets the publish callback.
     pub fn on_publish<C: Fn(&mut T, i32) + 'a>(&mut self, callback: C) {
         self.publish_callback = Some(Box::new(callback));
     }
+    ///Sets the subscribe callback.
     pub fn on_subscribe<C: Fn(&mut T, i32) + 'a>(&mut self, callback: C) {
         self.subscribe_callback = Some(Box::new(callback));
     }
+    ///Sets the unsubscribe callback.
     pub fn on_unsubscribe<C: Fn(&mut T, i32) + 'a>(&mut self, callback: C) {
         self.unsubscribe_callback = Some(Box::new(callback));
     }
+    ///Sets the disconnect callback.
     pub fn on_disconnect<C: Fn(&mut T, i32) + 'a>(&mut self, callback: C) {
         self.disconnect_callback = Some(Box::new(callback));
     }
+    ///Sets the log callback.
     pub fn on_log<C: Fn(&mut T, u32, &str) + 'a>(&mut self, callback: C) {
         self.log_callback = Some(Box::new(callback));
     }
 }
 
 impl Client {
+    ///Returns the host of the server connection.
     pub fn host(&self) -> &str {
         &self.server_connection.host
     }
+    ///Returns the port of the server connection.
     pub fn port(&self) -> u32 {
         self.server_connection.port
     }
+    ///Subscribes to a topic with a specified QoS.
     pub fn subscribe(&self, topic: &'static str, qos: QOS) -> crate::types::error::Result<TopicMatcher> {
         let pid = Instant::now().elapsed().subsec_millis() as u16;
         let packet = ControlPacket {
@@ -104,6 +117,7 @@ impl Client {
             })?;
         Ok(tm)
     }
+    ///Unsubscribes from a topic.
     pub fn unsubscribe(&self, topic: &'static str) -> crate::types::error::Result<i32> {
         let pid = Instant::now().elapsed().subsec_millis() as u16;
         let packet = ControlPacket {
@@ -127,6 +141,7 @@ impl Client {
             })?;
         Ok(pid.into())
     }
+    ///Disconnects from the server.
     pub fn disconnect(&mut self) -> crate::types::error::Result<()>{
         let packet = ControlPacket {
             header: Header::new(header::FixedHeader::Disconnect, None),
@@ -145,6 +160,7 @@ impl Client {
         }
         res
     }
+    ///Publishes a message to a topic with a specified QoS and retain flag.
     pub fn publish(
         &self,
         topic: &str,
@@ -172,6 +188,7 @@ impl Client {
             })?;
         Ok(pid as i32)
     }
+    ///Creates a new Client instance.
     pub fn new(
         client_id: String,
         will: Option<Will>,
@@ -261,6 +278,7 @@ impl Client {
         })
     }
 
+    ///Reconnects to the server.
     pub fn reconnect(&self) -> crate::types::error::Result<()> {
         let flags: [u8; 8];
         if let Some(will) = &self.will {
@@ -339,6 +357,7 @@ impl Client {
             })?;
         Ok(())
     }
+    ///Runs the client loop with the provided callbacks.
     pub fn do_loop<T>(&self, mut callbacks: Callbacks<T>) {
         let mut bytes = std::collections::VecDeque::new();
         'outer: loop {

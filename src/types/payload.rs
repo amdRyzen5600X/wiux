@@ -1,11 +1,13 @@
 use super::{Byte, EncodedString, QOS};
 
+///Represents an MQTT payload, with an optional Payloads enum value.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Payload {
     pub content: Option<Payloads>,
 }
 
 impl Payload {
+    ///Converts the Payload instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         if let Some(content) = &self.content {
@@ -16,6 +18,7 @@ impl Payload {
     }
 }
 
+///Represents the different types of MQTT payloads.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Payloads {
     Connect(ConnectPayload),
@@ -28,6 +31,7 @@ pub enum Payloads {
 }
 
 impl Payloads {
+    ///Converts the Payloads instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             Payloads::Connect(p) => { p.to_bytes()},
@@ -51,6 +55,7 @@ impl Payloads {
     }
 }
 
+///Represents the payload for a CONNECT packet.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConnectPayload {
     client_id: EncodedString,
@@ -61,6 +66,7 @@ pub struct ConnectPayload {
 }
 
 impl ConnectPayload {
+    ///Creates a new ConnectPayload instance.
     pub fn new(
         client_id: &str,
         will_topic: Option<&str>,
@@ -80,6 +86,7 @@ impl ConnectPayload {
             password,
         }
     }
+    ///Converts the ConnectPayload instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.client_id.to_bytes());
@@ -100,6 +107,7 @@ impl ConnectPayload {
     }
 }
 
+///Represents the payload for a SUBSCRIBE packet.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SubscribePayload {
     pub(crate) topic_filter: EncodedString,
@@ -107,12 +115,14 @@ pub struct SubscribePayload {
 }
 
 impl SubscribePayload {
+    ///Creates a new SubscribePayload instance.
     pub fn new(topic_filter: &str, qos: QOS) -> Self {
         Self {
             topic_filter: EncodedString::new(topic_filter),
             qos,
         }
     }
+    ///Converts the SubscribePayload instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.topic_filter.to_bytes());
