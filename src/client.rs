@@ -73,7 +73,13 @@ impl<'a, T> Callbacks<'a, T> {
 }
 
 impl Client {
-    pub fn subscribe(&self, topic: &'static str, qos: QOS) -> Result<TopicMatcher, ()> {
+    pub fn host(&self) -> &str {
+        &self.server_connection.host
+    }
+    pub fn port(&self) -> u32 {
+        self.server_connection.port
+    }
+    pub fn subscribe(&self, topic: &'static str, qos: QOS) -> crate::types::error::Result<TopicMatcher> {
         let pid = Instant::now().elapsed().subsec_millis() as u16;
         let packet = ControlPacket {
             header: Header {
@@ -93,10 +99,12 @@ impl Client {
         self.tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {})?;
+            .map_err(|_| {
+                crate::types::error::Error::RequestError
+            })?;
         Ok(tm)
     }
-    pub fn unsubscribe(&self, topic: &'static str) -> Result<i32, ()> {
+    pub fn unsubscribe(&self, topic: &'static str) -> crate::types::error::Result<i32> {
         let pid = Instant::now().elapsed().subsec_millis() as u16;
         let packet = ControlPacket {
             header: Header {
@@ -114,10 +122,12 @@ impl Client {
         self.tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {})?;
+            .map_err(|_| {
+                crate::types::error::Error::RequestError
+            })?;
         Ok(pid.into())
     }
-    pub fn disconnect(&mut self) -> Result<(), ()> {
+    pub fn disconnect(&mut self) -> crate::types::error::Result<()>{
         let packet = ControlPacket {
             header: Header::new(header::FixedHeader::Disconnect, None),
             payload: Payload { content: None },
@@ -127,7 +137,9 @@ impl Client {
             .tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {});
+            .map_err(|_| {
+                crate::types::error::Error::RequestError
+            });
         if res.is_err() {
             self.intent_disconnect = false;
         }
@@ -139,7 +151,7 @@ impl Client {
         message_text: &str,
         qos: QOS,
         retain: bool,
-    ) -> Result<i32, ()> {
+    ) -> crate::types::error::Result<i32> {
         let pid = Instant::now().elapsed().subsec_millis() as u16;
         let header = Header::new(
             header::FixedHeader::Publish(false, qos, retain),
@@ -155,7 +167,9 @@ impl Client {
         self.tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {})?;
+            .map_err(|_| {
+                crate::types::error::Error::RequestError
+            })?;
         Ok(pid as i32)
     }
     pub fn new(
@@ -166,9 +180,9 @@ impl Client {
         port: u32,
         username: Option<&str>,
         pass: Option<&str>,
-    ) -> Result<Self, ()> {
-        let mut tcp_stream = TcpStream::connect(format!("{}:{}", host, port)).map_err(|err| {
-            eprintln!("ERROR: unnable to connect to {}{}\n{}", host, port, err);
+    ) -> crate::types::error::Result<Self> {
+        let mut tcp_stream = TcpStream::connect(format!("{}:{}", host, port)).map_err(|_| {
+            crate::types::error::Error::ConnectionError
         })?;
         let flags: [u8; 8];
         if let Some(will) = &will {
@@ -234,8 +248,8 @@ impl Client {
             host: host.to_owned(),
             port,
         };
-        tcp_stream.write_all(&packet.to_bytes()).map_err(|err| {
-            eprintln!("ERROR: could not send {:?} {}", packet, err);
+        tcp_stream.write_all(&packet.to_bytes()).map_err(|_| {
+            crate::types::error::Error::RequestError
         })?;
         Ok(Client {
             client_id,
@@ -247,7 +261,7 @@ impl Client {
         })
     }
 
-    pub fn reconnect(&self) -> Result<(), ()> {
+    pub fn reconnect(&self) -> crate::types::error::Result<()> {
         let flags: [u8; 8];
         if let Some(will) = &self.will {
             let will_qos_flags = match will.qos {
@@ -320,7 +334,9 @@ impl Client {
         self.tcp_stream
             .as_ref()
             .write_all(&packet.to_bytes())
-            .map_err(|_| {})?;
+            .map_err(|_| {
+                crate::types::error::Error::ConnectionError
+            })?;
         Ok(())
     }
     pub fn do_loop<T>(&self, mut callbacks: Callbacks<T>) {

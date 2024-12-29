@@ -5,6 +5,7 @@ use payload::Payload;
 
 pub mod header;
 pub mod payload;
+pub mod error;
 
 pub type CallbackFunc<'a, T, V> = Option<Box<dyn Fn(&mut T, V) + 'a>>;
 pub type LogCollbackFunc<'a, T> = Option<Box<dyn Fn(&mut T, u32, &str) + 'a>>;
@@ -214,7 +215,7 @@ impl ControlPacket {
                                         Ok(QOS::Two)
                                     }
                                     _ => {
-                                        Err(())
+                                        Err(crate::types::error::Error::SubscriptionAckhowledgeFailureError)
                                     }
                                 })
                                 .collect(),

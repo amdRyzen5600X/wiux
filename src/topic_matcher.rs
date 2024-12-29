@@ -6,7 +6,7 @@ pub struct TopicMatcher {
 }
 
 impl TopicMatcher {
-    pub(crate) fn new(topic_filter: &'static str) -> Result<Self, ()> {
+    pub(crate) fn new(topic_filter: &'static str) -> crate::types::error::Result<Self> {
         let mut topic = topic_filter.split('/').map(|v| {
             if (v.contains("#") || v.contains("+")) && v.len() > 1 {
                 return false;
@@ -14,12 +14,12 @@ impl TopicMatcher {
             true
         });
         if topic_filter.contains("#") && !topic_filter.ends_with("#") {
-            return Err(());
+            return Err(crate::types::error::Error::InvalidTopicMatcherError(topic_filter));
         }
         if topic.all(|v| v) {
             return Ok(Self { topic_filter });
         }
-        Err(())
+        Err(crate::types::error::Error::InvalidTopicMatcherError(topic_filter))
     }
     pub fn matches(&self, msg: ControlPacket) -> bool {
         match msg.header.variable {

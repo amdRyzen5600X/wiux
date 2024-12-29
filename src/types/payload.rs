@@ -21,7 +21,7 @@ pub enum Payloads {
     Connect(ConnectPayload),
     Publish(Vec<u8>),
     Subscribe(Vec<SubscribePayload>),
-    SubAcknowledge(Vec<Result<QOS, ()>>),
+    SubAcknowledge(Vec<crate::types::error::Result<QOS>>),
     Unsubscribe(Vec<EncodedString>),
     #[default]
     Default,
@@ -48,7 +48,6 @@ impl Payloads {
             },
             _ => {vec![]},
         }
-
     }
 }
 
