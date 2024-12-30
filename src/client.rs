@@ -10,7 +10,7 @@ use crate::{
     types::{
         header::{self, Header, VariableHeader},
         payload::{self, ConnectPayload, Payload, SubscribePayload},
-        Byte, CallbackFunc, ControlPacket, EncodedString, Integer, LogCollbackFunc,
+        CallbackFunc, ControlPacket, EncodedString, Integer, LogCollbackFunc,
         ServerConnection, Will, QOS,
     },
 };
@@ -201,50 +201,28 @@ impl Client {
         let mut tcp_stream = TcpStream::connect(format!("{}:{}", host, port)).map_err(|_| {
             crate::types::error::Error::ConnectionError
         })?;
-        let flags: [u8; 8];
+        let mut flags = 0_u8;
+        if username.is_some() { flags+=2_u8.pow(7)}
+        if pass.is_some() && username.is_some() { flags+=2_u8.pow(6)}
+        if clean_session { flags+=2_u8 }
         if let Some(will) = &will {
             let will_qos_flags = match will.qos {
                 QOS::One => [0, 1],
                 QOS::Two => [1, 0],
                 QOS::Zero => [0, 0],
             };
-            flags = [
-                if username.is_some() { 1 } else { 0 },
-                if pass.is_some() && username.is_some() {
-                    1
-                } else {
-                    0
-                },
-                if will.retain { 1 } else { 0 },
-                will_qos_flags[0],
-                will_qos_flags[1],
-                1_u8, //will flag
-                if clean_session { 1 } else { 0 },
-                0,
-            ];
-        } else {
-            flags = [
-                if username.is_some() { 1 } else { 0 },
-                if pass.is_some() && username.is_some() {
-                    1
-                } else {
-                    0
-                },
-                0,
-                0,
-                0,
-                0,
-                if clean_session { 1 } else { 0 },
-                0,
-            ];
+            if will.retain { flags+=2_u8.pow(5) }
+            if will_qos_flags[0] == 1 { flags+=2_u8.pow(4) }
+            if will_qos_flags[1] == 1 { flags+=2_u8.pow(3) }
+            flags+=2_u8.pow(2);
         }
 
         let header = Header::new(
             header::FixedHeader::Connect,
             Some(VariableHeader::Connect(header::Connect {
                 protocol_name: EncodedString::new("MQTT"),
-                protocol_level: Byte::new(4),
-                connect_flags: Byte { bits: flags },
+                protocol_level: 4_u8,
+                connect_flags: flags,
                 keep_alive: Integer::new(0),
             })),
         );
@@ -280,61 +258,27 @@ impl Client {
 
     ///Reconnects to the server.
     pub fn reconnect(&self) -> crate::types::error::Result<()> {
-        let flags: [u8; 8];
+        let mut flags = 0_u8;
+        if self.server_connection.username.is_some() { flags+=2_u8.pow(7)}
+        if self.server_connection.password.is_some() && self.server_connection.username.is_some() { flags+=2_u8.pow(6)}
+        if self.clean_session { flags+=2_u8 }
         if let Some(will) = &self.will {
             let will_qos_flags = match will.qos {
                 QOS::One => [0, 1],
                 QOS::Two => [1, 0],
                 QOS::Zero => [0, 0],
             };
-            flags = [
-                if self.server_connection.username.is_some() {
-                    1
-                } else {
-                    0
-                },
-                if self.server_connection.password.is_some()
-                    && self.server_connection.username.is_some()
-                {
-                    1
-                } else {
-                    0
-                },
-                if will.retain { 1 } else { 0 },
-                will_qos_flags[0],
-                will_qos_flags[1],
-                1_u8, //will flag
-                if self.clean_session { 1 } else { 0 },
-                0,
-            ];
-        } else {
-            flags = [
-                if self.server_connection.username.is_some() {
-                    1
-                } else {
-                    0
-                },
-                if self.server_connection.password.is_some()
-                    && self.server_connection.username.is_some()
-                {
-                    1
-                } else {
-                    0
-                },
-                0,
-                0,
-                0,
-                0,
-                if self.clean_session { 1 } else { 0 },
-                0,
-            ];
+            if will.retain { flags+=2_u8.pow(5) }
+            if will_qos_flags[0] == 1 { flags+=2_u8.pow(4) }
+            if will_qos_flags[1] == 1 { flags+=2_u8.pow(3) }
+            flags+=2_u8.pow(2);
         }
         let header = Header::new(
             header::FixedHeader::Connect,
             Some(VariableHeader::Connect(header::Connect {
                 protocol_name: EncodedString::new("MQTT"),
-                protocol_level: Byte::new(4),
-                connect_flags: Byte { bits: flags },
+                protocol_level: 4_u8,
+                connect_flags: flags,
                 keep_alive: Integer::new(0),
             })),
         );
@@ -463,7 +407,7 @@ impl Client {
                             else {
                                 continue;
                             };
-                            cb(&mut callbacks.data, conn.connect_return_code.to_u8() as i32);
+                            cb(&mut callbacks.data, conn.connect_return_code as i32);
                         }
                     }
                     header::FixedHeader::Publish(_, _, _) => {

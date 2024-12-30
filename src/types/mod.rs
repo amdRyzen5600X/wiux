@@ -3,48 +3,18 @@ use std::collections::VecDeque;
 use header::Header;
 use payload::Payload;
 
+pub mod error;
 pub mod header;
 pub mod payload;
-pub mod error;
 
 pub type CallbackFunc<'a, T, V> = Option<Box<dyn Fn(&mut T, V) + 'a>>;
 pub type LogCollbackFunc<'a, T> = Option<Box<dyn Fn(&mut T, u32, &str) + 'a>>;
 
-///Represents a single byte.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Byte {
-    pub(crate) bits: [u8; 8],
-}
-
-impl Byte {
-    ///Creates a new Byte instance from a u8 value.
-    pub fn new(val: u8) -> Self {
-        let s = format!("{:b}", val);
-        let mut bits = [0_u8; 8];
-        for (i, c) in s.chars().enumerate() {
-            if c == '1' {
-                bits[i] = 1;
-            } else {
-                bits[i] = 0;
-            }
-        }
-        Self { bits }
-    }
-    ///Converts the Byte instance to a u8 value.
-    pub fn to_u8(&self) -> u8 {
-        let mut res = 0_u8;
-        for (i, b) in self.bits.iter().enumerate() {
-            res += b * 2_u8.pow(i as u32);
-        }
-        res
-    }
-}
-
 ///Represents a 16-bit integer.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Integer {
-    msb: Byte,
-    lsb: Byte,
+    msb: u8,
+    lsb: u8,
 }
 
 impl Integer {
@@ -52,17 +22,17 @@ impl Integer {
     pub fn new(val: u16) -> Self {
         let val = val.to_be_bytes();
         Self {
-            msb: Byte::new(val[0]),
-            lsb: Byte::new(val[1]),
+            msb: val[0],
+            lsb: val[1],
         }
     }
     ///Converts the Integer instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
-        vec![self.msb.to_u8(), self.lsb.to_u8()]
+        vec![self.msb, self.lsb]
     }
     ///Converts the Integer instance to a u16 value.
     pub fn to_u16(&self) -> u16 {
-        ((self.msb.to_u8() as u16) << 8) | self.lsb.to_u8() as u16
+        ((self.msb as u16) << 8) | self.lsb as u16
     }
 }
 
@@ -135,8 +105,8 @@ impl ControlPacket {
                 let header = Header::new(
                     header::FixedHeader::Connack,
                     Some(header::VariableHeader::Conack(header::ConnectAcknowledge {
-                        connect_acknowledge_flags: Byte::new(buf[0]),
-                        connect_return_code: Byte::new(buf[1]),
+                        connect_acknowledge_flags: buf[0],
+                        connect_return_code: buf[1],
                     })),
                 );
                 return Some(ControlPacket {
@@ -149,8 +119,8 @@ impl ControlPacket {
                     header::FixedHeader::Puback,
                     Some(header::VariableHeader::Puback(header::PublishAcknowledge {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );
@@ -164,8 +134,8 @@ impl ControlPacket {
                     header::FixedHeader::Pubrec,
                     Some(header::VariableHeader::Pubrec(header::PublishRecieved {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );
@@ -179,8 +149,8 @@ impl ControlPacket {
                     header::FixedHeader::Pubrel,
                     Some(header::VariableHeader::Pubrel(header::PublishRelease {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );
@@ -194,8 +164,8 @@ impl ControlPacket {
                     header::FixedHeader::Pubcomp,
                     Some(header::VariableHeader::Pubcomp(header::PublishComplete {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );
@@ -209,8 +179,8 @@ impl ControlPacket {
                     header::FixedHeader::Suback,
                     Some(header::VariableHeader::Suback(header::Subscribe {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );
@@ -245,8 +215,8 @@ impl ControlPacket {
                     header::FixedHeader::Unsuback,
                     Some(header::VariableHeader::Unsuback(header::Unsubscribe {
                         packet_id: Integer {
-                            msb: Byte::new(buf[0]),
-                            lsb: Byte::new(buf[1]),
+                            msb: buf[0],
+                            lsb: buf[1],
                         },
                     })),
                 );

@@ -1,4 +1,4 @@
-use super::{Byte, EncodedString, Integer, QOS};
+use super::{EncodedString, Integer, QOS};
 
 ///Represents an MQTT header, consisting of a fixed header and an optional variable header.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -109,8 +109,8 @@ impl VariableHeader {
         match self {
             VariableHeader::Connect(h) => {
                 res.extend(h.protocol_name.to_bytes());
-                res.push(h.protocol_level.to_u8());
-                res.push(h.connect_flags.to_u8());
+                res.push(h.protocol_level);
+                res.push(h.connect_flags);
                 res.extend(h.keep_alive.to_bytes());
             },
             VariableHeader::Publish(h) => {
@@ -133,16 +133,16 @@ impl VariableHeader {
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Connect {
     pub protocol_name: EncodedString,
-    pub protocol_level: Byte,
-    pub connect_flags: Byte,
+    pub protocol_level: u8,
+    pub connect_flags: u8,
     pub keep_alive: Integer,
 }
 
 ///Represents the connect acknowledge packet variable header.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConnectAcknowledge {
-    pub connect_acknowledge_flags: Byte,
-    pub connect_return_code: Byte,
+    pub connect_acknowledge_flags: u8,
+    pub connect_return_code: u8,
 }
 
 ///Represents the publish packet variable header.

@@ -1,4 +1,4 @@
-use super::{Byte, EncodedString, QOS};
+use super::{EncodedString, QOS};
 
 ///Represents an MQTT payload, with an optional Payloads enum value.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -128,13 +128,13 @@ impl SubscribePayload {
         res.extend(self.topic_filter.to_bytes());
         match self.qos {
             QOS::One => {
-                res.push(Byte::new(1).to_u8());
+                res.push(1_u8);
             },
             QOS::Two => {
-                res.push(Byte::new(2).to_u8());
+                res.push(2_u8);
             },
             QOS::Zero => {
-                res.push(Byte::new(0).to_u8());
+                res.push(0_u8);
             },
         }
         res
