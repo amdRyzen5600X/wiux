@@ -1,4 +1,24 @@
-use crate::types::ControlPacket;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Zipped<I, J> {
+    Both(I, J),
+    Left(I),
+    Right(J),
+}
+
+fn zip_longest<A, B>(a: A, b: B) -> impl Iterator<Item = Zipped<A::Item, B::Item>>
+where
+    A: IntoIterator,
+    B: IntoIterator,
+{
+    let mut ait = a.into_iter();
+    let mut bit = b.into_iter();
+    std::iter::from_fn(move || match (ait.next(), bit.next()) {
+        (Some(i), Some(j)) => Some(Zipped::Both(i, j)),
+        (Some(i), None) => Some(Zipped::Left(i)),
+        (None, Some(j)) => Some(Zipped::Right(j)),
+        (None, None) => None,
+    })
+}
 
 ///Represents a topic matcher, with a topic_filter field.
 #[derive(Default, Debug, Clone, Copy)]
@@ -15,12 +35,16 @@ impl TopicMatcher {
             true
         });
         if topic_filter.contains("#") && !topic_filter.ends_with("#") {
-            return Err(crate::types::error::Error::InvalidTopicMatcherError(topic_filter));
+            return Err(crate::types::error::Error::InvalidTopicMatcherError(
+                topic_filter,
+            ));
         }
         if topic.all(|v| v) {
             return Ok(Self { topic_filter });
         }
-        Err(crate::types::error::Error::InvalidTopicMatcherError(topic_filter))
+        Err(crate::types::error::Error::InvalidTopicMatcherError(
+            topic_filter,
+        ))
     }
     ///Checks if a control packet matches the topic filter.
     ///
@@ -40,110 +64,23 @@ impl TopicMatcher {
     ///    topic_filter: "one/+/some/#",
     ///};
     ///let msg_topic = "one/two/some/another/twonother";
-    ///let msg = ControlPacket {
-    ///    header: crate::types::header::Header::new(
-    ///        FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-    ///        Some(VariableHeader::Publish(crate::types::header::Publish {
-    ///            topic_name: types::EncodedString::new(msg_topic),
-    ///            packet_id: types::Integer::new(0),
-    ///        })),
-    ///    ),
-    ///    payload: types::payload::Payload { content: None },
-    ///};
-    ///assert!(matcher.matches(msg));
+    ///assert!(matcher.matches(msg_topic));
     ///```
-    pub fn matches(&self, msg: ControlPacket) -> bool {
-        match msg.header.variable {
-            Some(crate::types::header::VariableHeader::Publish(h)) => {
-                let topic: Vec<_> = h.topic_name.to_str().chars().collect();
-                let sub: Vec<_> = self.topic_filter.chars().collect();
-                let mut spos;
-                let mut sub_p = 0;
-                let mut topic_p = 0;
-
-                let mut result = false;
-
-                spos = 0;
-
-                while sub.get(sub_p).is_some() {
-                    if sub[sub_p] != topic[topic_p] || topic.get(topic_p).is_none() {
-                        if sub[sub_p] == '+' {
-                            spos += 1;
-                            sub_p += 1;
-                            while topic.get(topic_p).is_some() && topic[topic_p] != '/' {
-                                topic_p += 1;
-                            }
-                            if topic.get(topic_p).is_none() && sub.get(sub_p).is_none() {
-                                result = true;
-                                return result;
-                            }
-                        } else if sub[sub_p] == '#' {
-                            while topic.get(topic_p).is_some() {
-                                topic_p += 1;
-                            }
-                            result = true;
-                            return result;
-                        } else {
-                            if topic.get(topic_p).is_none()
-                                && spos > 0
-                                && sub[sub_p - 1] == '+'
-                                && sub[sub_p] == '/'
-                                && sub[sub_p + 1] == '#'
-                            {
-                                result = true;
-                                return result;
-                            }
-
-                            while sub.get(sub_p).is_some() {
-                                spos += 1;
-                                sub_p += 1;
-                            }
-
-                            return result;
-                        }
-                    } else {
-                        println!("{:?}\n{:?}", topic_p, sub_p);
-                        println!("{:?}\n{:?}", topic, sub);
-                        if topic.get(topic_p + 1).is_none()
-                            && sub.get(sub_p + 1) == Some(&'/')
-                            && sub.get(sub_p + 2) == Some(&'#')
-                            && sub.get(sub_p + 3).is_none()
-                        {
-                            result = true;
-                            return result;
-                        }
-
-                        spos += 1;
-                        sub_p += 1;
-                        topic_p += 1;
-                        if (sub.get(sub_p).is_none() && topic.get(topic_p).is_none())
-                            || (topic.get(topic_p).is_none()
-                                && sub[sub_p] == '+'
-                                && sub.get(sub_p + 1).is_none())
-                        {
-                            result = true;
-                            return result;
-                        }
-                    }
-                }
-                if topic.get(topic_p).is_some() || sub.get(sub_p).is_some() {
-                    result = false;
-                }
-
-                result
+    pub fn matches(&self, msg_topic: &str) -> bool {
+        for zipped in zip_longest(self.topic_filter.split('/'), msg_topic.split('/')) {
+            match zipped {
+                Zipped::Both("+", _) => continue,
+                Zipped::Both("#", _) | Zipped::Left("#") => return true,
+                Zipped::Both(p, i) if p == i => continue,
+                _ => return false,
             }
-            _ => false,
         }
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{
-        self,
-        header::{FixedHeader, VariableHeader},
-    };
-
     use super::*;
 
     #[test]
@@ -152,17 +89,7 @@ mod tests {
             topic_filter: "some/#/another",
         };
         let msg_topic = "some/one/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test1() {
@@ -170,17 +97,7 @@ mod tests {
             topic_filter: "some/#/another",
         };
         let msg_topic = "some/one/two/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test2() {
@@ -188,17 +105,7 @@ mod tests {
             topic_filter: "some/+/another",
         };
         let msg_topic = "some/one/two/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(!matcher.matches(msg));
+        assert!(!matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test3() {
@@ -206,17 +113,7 @@ mod tests {
             topic_filter: "some/+/another",
         };
         let msg_topic = "some/one/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test4() {
@@ -224,17 +121,7 @@ mod tests {
             topic_filter: "some/#",
         };
         let msg_topic = "some/one/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test5() {
@@ -242,17 +129,7 @@ mod tests {
             topic_filter: "one/some/#",
         };
         let msg_topic = "one/some";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test6() {
@@ -260,17 +137,7 @@ mod tests {
             topic_filter: "one/some/#",
         };
         let msg_topic = "one/some";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test7() {
@@ -278,17 +145,7 @@ mod tests {
             topic_filter: "one/+/some/#",
         };
         let msg_topic = "one/two/some";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test8() {
@@ -296,17 +153,7 @@ mod tests {
             topic_filter: "one/+/some/#",
         };
         let msg_topic = "one/two/some/another/twonother";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(matcher.matches(msg));
+        assert!(matcher.matches(msg_topic));
     }
     #[test]
     fn matching_test9() {
@@ -314,16 +161,6 @@ mod tests {
             topic_filter: "one/+/some/#",
         };
         let msg_topic = "one/two/three/some/another";
-        let msg = ControlPacket {
-            header: crate::types::header::Header::new(
-                FixedHeader::Publish(false, crate::types::QOS::Zero, false),
-                Some(VariableHeader::Publish(crate::types::header::Publish {
-                    topic_name: types::EncodedString::new(msg_topic),
-                    packet_id: types::Integer::new(0),
-                })),
-            ),
-            payload: types::payload::Payload { content: None },
-        };
-        assert!(!matcher.matches(msg));
+        assert!(!matcher.matches(msg_topic));
     }
 }
