@@ -195,8 +195,8 @@ impl Client {
         clean_session: bool,
         host: &str,
         port: u32,
-        username: Option<&str>,
-        pass: Option<&str>,
+        username: Option<String>,
+        pass: Option<String>,
     ) -> crate::types::error::Result<Self> {
         let mut tcp_stream = TcpStream::connect(format!("{}:{}", host, port)).map_err(|_| {
             crate::types::error::Error::ConnectionError
@@ -232,14 +232,14 @@ impl Client {
                 &client_id,
                 will_payload.clone().map(|w| w.topic).as_deref(),
                 will_payload.map(|w| w.message).as_deref(),
-                username,
-                pass,
+                username.clone(),
+                pass.clone(),
             ))),
         };
         let packet = ControlPacket { header, payload };
         let server_connection = ServerConnection {
-            username: username.map(EncodedString::new),
-            password: pass.map(EncodedString::new),
+            username: username.as_deref().map(EncodedString::new),
+            password: pass.as_deref().map(EncodedString::new),
             host: host.to_owned(),
             port,
         };
@@ -288,8 +288,8 @@ impl Client {
                 &self.client_id,
                 will.clone().map(|w| w.topic).as_deref(),
                 will.map(|w| w.message).as_deref(),
-                self.server_connection.username.clone().map(|u| u.to_str()),
-                self.server_connection.password.clone().map(|u| u.to_str()),
+                self.server_connection.username.clone().map(|u| u.value),
+                self.server_connection.password.clone().map(|u| u.value),
             ))),
         };
         let packet = ControlPacket { header, payload };

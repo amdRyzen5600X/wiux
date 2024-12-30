@@ -71,13 +71,13 @@ impl ConnectPayload {
         client_id: &str,
         will_topic: Option<&str>,
     will_message: Option<&str>,
-        username: Option<&str>,
-        password: Option<&str>,
+        username: Option<String>,
+        password: Option<String>,
     ) -> Self {
         let will_topic = will_topic.map(EncodedString::new);
         let will_message = will_message.map(EncodedString::new);
-        let username = username.map(EncodedString::new);
-        let password = password.map(EncodedString::new);
+        let username = username.as_deref().map(EncodedString::new);
+        let password = password.as_deref().map(EncodedString::new);
         Self {
             client_id: EncodedString::new(client_id),
             will_topic,

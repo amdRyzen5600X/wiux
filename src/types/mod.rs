@@ -40,7 +40,7 @@ impl Integer {
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EncodedString {
     len: Integer,
-    value: Vec<u8>,
+    pub value: String,
 }
 
 impl EncodedString {
@@ -48,20 +48,14 @@ impl EncodedString {
     pub fn new(s: &str) -> Self {
         Self {
             len: Integer::new(s.len() as u16),
-            value: s.as_bytes().to_vec(),
+            value: s.to_owned(),
         }
-    }
-    ///Converts the EncodedString instance to a &str value.
-    pub fn to_str(&self) -> &'static str {
-        return Box::leak(Box::new(
-            String::from_utf8(self.value.clone()).expect("error while trying decode utf8 string"),
-        ));
     }
     ///Converts the EncodedString instance to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::new();
         res.extend(self.len.to_bytes());
-        res.extend(self.value.clone());
+        res.extend(self.value.as_bytes());
         res
     }
 }
